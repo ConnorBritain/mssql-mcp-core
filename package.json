@@ -31,7 +31,7 @@
     }
   },
   "scripts": {
-    "build": "npx tsc",
+    "build": "tsc",
     "prepare": "npm run build",
     "watch": "tsc --watch"
   },
