@@ -1,0 +1,53 @@
+{
+  "name": "@connorbritain/mssql-mcp-core",
+  "version": "0.1.0",
+  "description": "Shared core library for MSSQL MCP servers - tools, config, routing, and server harness",
+  "keywords": [
+    "mcp",
+    "sql-server",
+    "mssql",
+    "database",
+    "ai",
+    "claude",
+    "windsurf",
+    "model-context-protocol"
+  ],
+  "author": "Connor England <connor.r.england@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ConnorBritain/mssql-mcp-core.git"
+  },
+  "homepage": "https://github.com/ConnorBritain/mssql-mcp-core",
+  "bugs": {
+    "url": "https://github.com/ConnorBritain/mssql-mcp-core/issues"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "watch": "tsc --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/mssql": "^9.1.7",
+    "@types/node": "^20.14.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.4.0",
+    "@modelcontextprotocol/sdk": "^1.23.0",
+    "dotenv": "^16.4.5",
+    "mssql": "^10.0.1"
+  },
+  "type": "module"
+}
