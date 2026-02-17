@@ -31,8 +31,8 @@ export class TestConnectionTool implements Tool {
       const envManager = getEnvironmentManager();
       const env = envManager.getEnvironment(environmentName);
 
-      // Get connection
-      const pool = await envManager.getConnection(environmentName);
+      // Use pool injected by wrapToolRun, fall back to getConnection
+      const pool = (params as any).pool ?? await envManager.getConnection(environmentName);
       const connectionTime = Date.now() - startTime;
 
       // Run a simple query to verify connectivity

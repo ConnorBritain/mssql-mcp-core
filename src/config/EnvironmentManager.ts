@@ -267,7 +267,19 @@ export class EnvironmentManager {
       cached.pool.connected &&
       (!cached.expiresOn || cached.expiresOn > new Date(Date.now() + 2 * 60 * 1000))
     ) {
-      return cached.pool;
+      // Health check: verify the pool can actually execute a query
+      try {
+        const req = new sql.Request(cached.pool);
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("health check timeout")), 5000)
+        );
+        await Promise.race([req.query("SELECT 1"), timeout]);
+        return cached.pool;
+      } catch {
+        console.warn(`[mssql] Pool health check failed for '${env.name}', reconnecting...`);
+        try { await cached.pool.close(); } catch { /* ignore close errors */ }
+        this.connections.delete(env.name);
+      }
     }
 
     // Create new connection
@@ -275,7 +287,7 @@ export class EnvironmentManager {
 
     // Close old connection if exists
     if (cached?.pool && cached.pool.connected) {
-      await cached.pool.close();
+      try { await cached.pool.close(); } catch { /* ignore close errors */ }
     }
 
     const pool = new sql.ConnectionPool(config);
