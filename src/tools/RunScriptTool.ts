@@ -47,7 +47,7 @@ export class RunScriptTool implements Tool {
     const { scriptName, parameters = {}, preview = false, confirm = false, environment } = params;
 
     const scriptManager = getScriptManager();
-    const envManager = getEnvironmentManager();
+    const envManager = await getEnvironmentManager();
 
     // Get the script
     const script = scriptManager.getScript(scriptName);

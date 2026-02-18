@@ -35,7 +35,7 @@ export class IntentRouter {
     const normalizedPrompt = prompt.toLowerCase();
 
     // Infer environment from prompt if not explicitly provided
-    const environment = params.environment || this.inferEnvironment(normalizedPrompt);
+    const environment = params.environment || await this.inferEnvironment(normalizedPrompt);
     if (environment) {
       toolArguments.environment = environment;
     }
@@ -107,8 +107,8 @@ export class IntentRouter {
     }
   }
 
-  private inferEnvironment(prompt: string): string | undefined {
-    const envManager = getEnvironmentManager();
+  private async inferEnvironment(prompt: string): Promise<string | undefined> {
+    const envManager = await getEnvironmentManager();
     const environments = envManager.listEnvironments();
 
     for (const env of environments) {

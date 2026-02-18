@@ -38,7 +38,7 @@ export class DescribeTableTool implements Tool {
 
       // Validate database access if specified
       if (database) {
-        const envManager = getEnvironmentManager();
+        const envManager = await getEnvironmentManager();
         const dbCheck = envManager.isDatabaseAllowed(environment, database);
         if (!dbCheck.allowed) {
           return {

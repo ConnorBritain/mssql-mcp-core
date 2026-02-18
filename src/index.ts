@@ -33,7 +33,7 @@ export {
   validateDotenvPath,
   validateFileDirectory,
 } from "./config/SecretResolver.js";
-export type { SecretsConfig, SecretProviderConfig } from "./config/SecretResolver.js";
+export type { SecretProvider, SecretsConfig, SecretProviderConfig } from "./config/SecretResolver.js";
 
 // ─── Audit ──────────────────────────────────────────────────────────────────
 export { AuditLogger, auditLogger } from "./audit/AuditLogger.js";

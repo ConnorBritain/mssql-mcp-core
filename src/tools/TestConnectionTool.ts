@@ -28,7 +28,7 @@ export class TestConnectionTool implements Tool {
     const verbose = params?.verbose ?? false;
 
     try {
-      const envManager = getEnvironmentManager();
+      const envManager = await getEnvironmentManager();
       const env = envManager.getEnvironment(environmentName);
 
       // Use pool injected by wrapToolRun, fall back to getConnection

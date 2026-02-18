@@ -56,25 +56,33 @@ export class EnvironmentManager {
   private readonly connections: Map<string, { pool: sql.ConnectionPool; expiresOn?: Date }>;
   private secretResolver: SecretResolver;
 
-  constructor(configPath?: string) {
+  private constructor() {
     this.environments = new Map();
     this.connections = new Map();
-    this.secretResolver = createSecretResolver(); // default: env-only
+    // Temporary default — will be replaced during create() or loadFromEnvVars()
+    this.secretResolver = new SecretResolver([]);
+  }
 
-    // Try to load from config file first
+  /**
+   * Async factory method. Use this instead of `new EnvironmentManager()`.
+   */
+  static async create(configPath?: string): Promise<EnvironmentManager> {
+    const manager = new EnvironmentManager();
+
     if (configPath) {
-      this.loadFromFile(configPath);
+      await manager.loadFromFile(configPath);
     } else {
-      // Fall back to environment variables for single environment
-      this.loadFromEnvVars();
+      manager.loadFromEnvVars();
     }
+
+    return manager;
   }
 
   getSecretResolver(): SecretResolver {
     return this.secretResolver;
   }
 
-  private loadFromFile(configPath: string): void {
+  private async loadFromFile(configPath: string): Promise<void> {
     try {
       const resolvedPath = path.resolve(configPath);
       if (!fs.existsSync(resolvedPath)) {
@@ -95,7 +103,7 @@ export class EnvironmentManager {
           console.error(`Using DOTENV_PATH fallback: ${dotenvPath}`);
         }
       }
-      this.secretResolver = createSecretResolver(secretsConfig);
+      this.secretResolver = await createSecretResolver(secretsConfig);
 
       this.defaultEnvironment = config.defaultEnvironment;
 
@@ -113,6 +121,11 @@ export class EnvironmentManager {
   }
 
   private loadFromEnvVars(): void {
+    // Env-var-only path: no vault providers, use a minimal env-only resolver
+    // createSecretResolver() defaults to env provider, but is async now.
+    // Since loadFromEnvVars is sync and only needs env vars, build the resolver directly.
+    this.secretResolver = new SecretResolver([]);
+
     const server = process.env.SERVER_NAME;
     const database = process.env.DATABASE_NAME;
 
@@ -416,10 +429,10 @@ export class EnvironmentManager {
 // Singleton instance
 let environmentManager: EnvironmentManager;
 
-export function getEnvironmentManager(): EnvironmentManager {
+export async function getEnvironmentManager(): Promise<EnvironmentManager> {
   if (!environmentManager) {
     const configPath = process.env.ENVIRONMENTS_CONFIG_PATH;
-    environmentManager = new EnvironmentManager(configPath);
+    environmentManager = await EnvironmentManager.create(configPath);
   }
   return environmentManager;
 }

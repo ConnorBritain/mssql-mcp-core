@@ -30,7 +30,7 @@ export class ListDatabasesTool implements Tool {
     const { environment, includeSystemDbs = false, stateFilter = "ONLINE" } = params ?? {};
 
     try {
-      const envManager = getEnvironmentManager();
+      const envManager = await getEnvironmentManager();
       const envConfig = envManager.getEnvironment(environment);
 
       // Check if environment has server-level access

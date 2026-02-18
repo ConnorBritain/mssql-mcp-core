@@ -23,7 +23,7 @@ export class ListEnvironmentsTool implements Tool {
     const { includeDetails = false } = params ?? {};
 
     try {
-      const envManager = getEnvironmentManager();
+      const envManager = await getEnvironmentManager();
       const environments = envManager.listEnvironments();
 
       const environmentList = environments.map((env) => {

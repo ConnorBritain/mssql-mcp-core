@@ -37,7 +37,7 @@ export async function startMcpServer(config: McpServerConfig): Promise<void> {
   const sessionId = crypto.randomUUID();
 
   // 3. Environment manager (reads ENVIRONMENTS_CONFIG_PATH, etc.)
-  const environmentManager = getEnvironmentManager();
+  const environmentManager = await getEnvironmentManager();
 
   // 4. Create all tool instances
   const tools = createAllToolInstances();

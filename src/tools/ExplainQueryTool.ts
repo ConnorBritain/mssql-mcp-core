@@ -38,7 +38,7 @@ export class ExplainQueryTool implements Tool {
     }
 
     const sanitizedQuery = query.trim();
-    const envManager = getEnvironmentManager();
+    const envManager = await getEnvironmentManager();
     const pool = await envManager.getConnection(environment);
 
     let showplanEnabled = false;

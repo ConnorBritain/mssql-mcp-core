@@ -54,7 +54,7 @@ Returns validation results for each environment with errors and warnings.`;
   };
 
   async run(args?: { environment?: string }): Promise<ValidateEnvironmentConfigResult> {
-    const envManager = getEnvironmentManager();
+    const envManager = await getEnvironmentManager();
     const environments = envManager.listEnvironments();
 
     if (environments.length === 0) {
@@ -305,7 +305,7 @@ Returns validation results for each environment with errors and warnings.`;
   }
 
   private validateSecrets(
-    envManager: ReturnType<typeof getEnvironmentManager>,
+    envManager: Awaited<ReturnType<typeof getEnvironmentManager>>,
     environments: EnvironmentConfig[]
   ): SecretsValidationResult {
     const resolver = envManager.getSecretResolver();
@@ -357,7 +357,7 @@ Returns validation results for each environment with errors and warnings.`;
       const config: EnvironmentsConfig = JSON.parse(rawContent);
       if (!config.secrets?.providers) return [];
 
-      const validTypes = ["env", "dotenv", "file"];
+      const validTypes = ["env", "dotenv", "file", "azure-keyvault", "aws-secrets-manager", "hashicorp-vault"];
       const results: { type: string; valid: boolean; error?: string }[] = [];
 
       for (const provider of config.secrets.providers) {
@@ -385,6 +385,30 @@ Returns validation results for each environment with errors and warnings.`;
           } else {
             const check = validateFileDirectory(provider.directory);
             results.push({ type: "file", valid: check.valid, error: check.error });
+          }
+        } else if (provider.type === "azure-keyvault") {
+          if (!provider.vaultUrl) {
+            results.push({ type: "azure-keyvault", valid: false, error: "Missing required 'vaultUrl' field" });
+          } else if (!provider.vaultUrl.startsWith("https://")) {
+            results.push({ type: "azure-keyvault", valid: false, error: `vaultUrl must start with https://: ${provider.vaultUrl}` });
+          } else {
+            results.push({ type: "azure-keyvault", valid: true, error: undefined });
+          }
+        } else if (provider.type === "aws-secrets-manager") {
+          if (!provider.region) {
+            results.push({ type: "aws-secrets-manager", valid: false, error: "Missing required 'region' field" });
+          } else if (!provider.secrets || !Array.isArray(provider.secrets) || provider.secrets.length === 0) {
+            results.push({ type: "aws-secrets-manager", valid: false, error: "Missing required 'secrets' list (explicit secret names to fetch)" });
+          } else {
+            results.push({ type: "aws-secrets-manager", valid: true, error: undefined });
+          }
+        } else if (provider.type === "hashicorp-vault") {
+          if (!provider.address) {
+            results.push({ type: "hashicorp-vault", valid: false, error: "Missing required 'address' field" });
+          } else if (!provider.vaultPath) {
+            results.push({ type: "hashicorp-vault", valid: false, error: "Missing required 'vaultPath' field (e.g., 'secret/data/mssql')" });
+          } else {
+            results.push({ type: "hashicorp-vault", valid: true, error: undefined });
           }
         }
       }

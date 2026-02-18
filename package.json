@@ -45,9 +45,13 @@
   },
   "dependencies": {
     "@azure/identity": "^4.4.0",
+    "@azure/keyvault-secrets": "^4.9.0",
     "@modelcontextprotocol/sdk": "^1.23.0",
     "dotenv": "^16.4.5",
     "mssql": "^10.0.1"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.700.0"
   },
   "type": "module"
 }

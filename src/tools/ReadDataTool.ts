@@ -280,7 +280,7 @@ export class ReadDataTool implements Tool {
 
       // Validate database access if a specific database is requested
       if (database) {
-        const envManager = getEnvironmentManager();
+        const envManager = await getEnvironmentManager();
         const dbCheck = envManager.isDatabaseAllowed(environment, database);
         if (!dbCheck.allowed) {
           return {
