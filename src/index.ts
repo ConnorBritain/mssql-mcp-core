@@ -38,6 +38,8 @@ export type { SecretProvider, SecretsConfig, SecretProviderConfig } from "./conf
 // ─── Audit ──────────────────────────────────────────────────────────────────
 export { AuditLogger, auditLogger } from "./audit/AuditLogger.js";
 export type { AuditLogEntry, AuditLevel } from "./audit/AuditLogger.js";
+export { createAuditSink, FileSink, SyslogSink, HttpSink, AzureMonitorSink, CloudWatchSink } from "./audit/sinks/index.js";
+export type { AuditSink, AuditSinkConfig } from "./audit/sinks/index.js";
 
 // ─── Routing ────────────────────────────────────────────────────────────────
 export { IntentRouter } from "./routing/IntentRouter.js";

@@ -12,6 +12,8 @@ import { TransactionManager } from "../transactions/TransactionManager.js";
 import type { McpServerConfig, RunnableTool } from "../types.js";
 import { IntentRouter } from "../routing/IntentRouter.js";
 import { wrapToolRun } from "./wrapToolRun.js";
+import { auditLogger } from "../audit/AuditLogger.js";
+import { createAuditSink, type AuditSink, type AuditSinkConfig } from "../audit/sinks/AuditSink.js";
 import {
   createAllToolInstances,
   getReaderTools,
@@ -41,6 +43,52 @@ export async function startMcpServer(config: McpServerConfig): Promise<void> {
 
   // 3. Environment manager (reads ENVIRONMENTS_CONFIG_PATH, etc.)
   const environmentManager = await getEnvironmentManager();
+
+  // 3b. Configure audit sinks from environment config
+  const rawConfig = environmentManager.getRawConfig();
+  if (rawConfig) {
+    const secretResolver = environmentManager.getSecretResolver();
+
+    // Resolve secrets and create global sinks
+    const globalSinkConfigs = rawConfig.auditSinks ?? [];
+    const globalSinks: AuditSink[] = [];
+    for (const sinkConfig of globalSinkConfigs) {
+      try {
+        const resolved = secretResolver.resolveObject(sinkConfig) as AuditSinkConfig;
+        globalSinks.push(createAuditSink(resolved));
+      } catch (err) {
+        console.error(`Failed to create global audit sink '${sinkConfig.type}':`, err);
+      }
+    }
+
+    // If no global sinks configured, default to file sink (preserves backward compat)
+    if (globalSinks.length === 0) {
+      const logPath = process.env.AUDIT_LOG_PATH;
+      globalSinks.push(createAuditSink({ type: "file", path: logPath }));
+    }
+
+    // Resolve secrets and create per-environment sinks
+    const perEnvSinks = new Map<string, AuditSink[]>();
+    for (const envConfig of rawConfig.environments) {
+      if (envConfig.auditSinks && envConfig.auditSinks.length > 0) {
+        const envSinks: AuditSink[] = [];
+        for (const sinkConfig of envConfig.auditSinks) {
+          try {
+            const resolved = secretResolver.resolveObject(sinkConfig) as AuditSinkConfig;
+            envSinks.push(createAuditSink(resolved));
+          } catch (err) {
+            console.error(`Failed to create audit sink '${sinkConfig.type}' for env '${envConfig.name}':`, err);
+          }
+        }
+        if (envSinks.length > 0) {
+          perEnvSinks.set(envConfig.name, envSinks);
+        }
+      }
+    }
+
+    auditLogger.configureSinks(globalSinks, perEnvSinks);
+    console.error(`Configured audit sinks: ${globalSinks.length} global, ${perEnvSinks.size} environment-specific`);
+  }
 
   // 4. Create all tool instances
   const tools = createAllToolInstances();

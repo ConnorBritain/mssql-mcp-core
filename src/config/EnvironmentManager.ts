@@ -3,6 +3,7 @@ import * as path from "path";
 import { InteractiveBrowserCredential } from "@azure/identity";
 import sql from "mssql";
 import { SecretResolver, SecretsConfig, createSecretResolver } from "./SecretResolver.js";
+import type { AuditSinkConfig } from "../audit/sinks/AuditSink.js";
 
 export type AccessLevel = "server" | "database";
 export type TierLevel = "reader" | "writer" | "admin";
@@ -41,6 +42,9 @@ export interface EnvironmentConfig {
 
   // Tier designation (for validation against package type)
   tier?: TierLevel;
+
+  // Audit sink configuration (overrides global auditSinks when present)
+  auditSinks?: AuditSinkConfig[];
 }
 
 export interface EnvironmentsConfig {
@@ -48,6 +52,7 @@ export interface EnvironmentsConfig {
   environments: EnvironmentConfig[];
   scriptsPath?: string;  // Path to named SQL scripts directory
   secrets?: SecretsConfig;  // Pluggable secret provider configuration
+  auditSinks?: AuditSinkConfig[];  // Global audit sink configuration
 }
 
 export class EnvironmentManager {
@@ -57,6 +62,7 @@ export class EnvironmentManager {
   private secretResolver: SecretResolver;
   private refreshTimer?: ReturnType<typeof setInterval>;
   private rawEnvironments?: EnvironmentConfig[]; // unresolved configs for re-resolution on refresh
+  private rawConfig?: EnvironmentsConfig; // full raw config for sink config access
 
   private constructor() {
     this.environments = new Map();
@@ -82,6 +88,14 @@ export class EnvironmentManager {
 
   getSecretResolver(): SecretResolver {
     return this.secretResolver;
+  }
+
+  /**
+   * Get the raw environments config (before secret resolution).
+   * Used by createMcpServer to read audit sink configurations.
+   */
+  getRawConfig(): EnvironmentsConfig | undefined {
+    return this.rawConfig;
   }
 
   private async loadFromFile(configPath: string): Promise<void> {
@@ -110,6 +124,7 @@ export class EnvironmentManager {
       this.defaultEnvironment = config.defaultEnvironment;
 
       // Store raw configs so we can re-resolve when secrets rotate
+      this.rawConfig = config;
       this.rawEnvironments = config.environments;
 
       for (const env of config.environments) {

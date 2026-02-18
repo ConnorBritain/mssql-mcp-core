@@ -1,5 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
+import type { AuditSink } from "./sinks/AuditSink.js";
+import { FileSink } from "./sinks/FileSink.js";
 
 export type AuditLevel = "none" | "basic" | "verbose";
 
@@ -24,6 +26,10 @@ export class AuditLogger {
   private readonly enabled: boolean;
   private readonly redactSensitiveData: boolean;
 
+  /** environment name → sinks. Key "*" is global/default. */
+  private sinks: Map<string, AuditSink[]> | undefined;
+  private sinksConfigured = false;
+
   constructor() {
     // Read config from env vars
     const logPath = process.env.AUDIT_LOG_PATH;
@@ -42,9 +48,25 @@ export class AuditLogger {
     }
   }
 
+  /**
+   * Configure audit sinks for dispatching log entries.
+   * Once called, log entries are routed to sinks instead of direct file writes.
+   *
+   * @param globalSinks - Default sinks used when an environment has no specific sinks
+   * @param perEnvSinks - Environment-specific sinks (environment name → sink array)
+   */
+  configureSinks(globalSinks: AuditSink[], perEnvSinks: Map<string, AuditSink[]>): void {
+    this.sinks = new Map();
+    this.sinks.set("*", globalSinks);
+    for (const [envName, envSinks] of perEnvSinks) {
+      this.sinks.set(envName, envSinks);
+    }
+    this.sinksConfigured = true;
+  }
+
   private ensureLogDirectory() {
     if (!this.logFilePath) return;
-    
+
     const dir = path.dirname(this.logFilePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -83,8 +105,20 @@ export class AuditLogger {
     return redacted;
   }
 
+  /**
+   * Get the sink array for a given environment name.
+   * Falls back to global sinks ("*") if no environment-specific sinks are configured.
+   */
+  private getSinksForEnvironment(environment?: string): AuditSink[] | undefined {
+    if (!this.sinks) return undefined;
+    if (environment && this.sinks.has(environment)) {
+      return this.sinks.get(environment);
+    }
+    return this.sinks.get("*");
+  }
+
   log(entry: AuditLogEntry): void {
-    if (!this.enabled || !this.logFilePath) {
+    if (!this.enabled) {
       return;
     }
 
@@ -94,6 +128,29 @@ export class AuditLogger {
         arguments: entry.arguments ? this.redactArguments(entry.arguments) : undefined,
       };
 
+      // If sinks are configured, dispatch to the appropriate sinks
+      if (this.sinksConfigured) {
+        const sinks = this.getSinksForEnvironment(logEntry.environment);
+        if (sinks) {
+          for (const sink of sinks) {
+            try {
+              const result = sink.send(logEntry);
+              // If send returns a promise, catch errors without blocking
+              if (result && typeof (result as Promise<void>).catch === "function") {
+                (result as Promise<void>).catch((err) => {
+                  console.error(`Audit sink '${sink.type}' failed:`, err);
+                });
+              }
+            } catch (err) {
+              console.error(`Audit sink '${sink.type}' failed:`, err);
+            }
+          }
+        }
+        return;
+      }
+
+      // Legacy behavior: direct file write when no sinks configured
+      if (!this.logFilePath) return;
       const logLine = JSON.stringify(logEntry) + "\n";
       fs.appendFileSync(this.logFilePath, logLine, { encoding: "utf-8" });
     } catch (error) {
@@ -157,6 +214,46 @@ export class AuditLogger {
     };
 
     this.log(entry);
+  }
+
+  /**
+   * Flush all buffered entries in batching sinks.
+   */
+  async flush(): Promise<void> {
+    if (!this.sinks) return;
+    const promises: Promise<void>[] = [];
+    const seen = new Set<AuditSink>();
+    for (const sinkList of this.sinks.values()) {
+      for (const sink of sinkList) {
+        if (!seen.has(sink) && sink.flush) {
+          seen.add(sink);
+          promises.push(sink.flush().catch((err) => {
+            console.error(`Audit sink '${sink.type}' flush failed:`, err);
+          }));
+        }
+      }
+    }
+    await Promise.all(promises);
+  }
+
+  /**
+   * Close all sinks and release resources.
+   */
+  async close(): Promise<void> {
+    if (!this.sinks) return;
+    const promises: Promise<void>[] = [];
+    const seen = new Set<AuditSink>();
+    for (const sinkList of this.sinks.values()) {
+      for (const sink of sinkList) {
+        if (!seen.has(sink) && sink.close) {
+          seen.add(sink);
+          promises.push(sink.close().catch((err) => {
+            console.error(`Audit sink '${sink.type}' close failed:`, err);
+          }));
+        }
+      }
+    }
+    await Promise.all(promises);
   }
 
   /**
