@@ -8,6 +8,7 @@ import * as crypto from "crypto";
 
 import { initShims } from "../shims.js";
 import { getEnvironmentManager } from "../config/EnvironmentManager.js";
+import { TransactionManager } from "../transactions/TransactionManager.js";
 import type { McpServerConfig, RunnableTool } from "../types.js";
 import { IntentRouter } from "../routing/IntentRouter.js";
 import { wrapToolRun } from "./wrapToolRun.js";
@@ -16,6 +17,8 @@ import {
   getReaderTools,
   getWriterTools,
   getAdminTools,
+  getExplicitTransactionTools,
+  getBatchTransactionTools,
   buildToolRegistry,
   READER_MUTATING_TOOLS,
   WRITER_MUTATING_TOOLS,
@@ -65,7 +68,30 @@ export async function startMcpServer(config: McpServerConfig): Promise<void> {
       break;
   }
 
-  // 6. Wrap all exposed tools with policy enforcement + pool injection
+  // 6. Determine transaction mode and append transaction tools
+  const envTransactionMode = process.env.TRANSACTION_MODE as
+    | "explicit"
+    | "batch"
+    | "none"
+    | undefined;
+  const effectiveTransactionMode =
+    config.tier === "reader"
+      ? "none"
+      : envTransactionMode ?? config.transactionMode ?? "explicit";
+
+  let transactionManager: TransactionManager | undefined;
+
+  if (effectiveTransactionMode !== "none") {
+    transactionManager = new TransactionManager();
+
+    if (effectiveTransactionMode === "explicit") {
+      exposedTools.push(...getExplicitTransactionTools(tools));
+    } else if (effectiveTransactionMode === "batch") {
+      exposedTools.push(...getBatchTransactionTools(tools));
+    }
+  }
+
+  // 7. Wrap all exposed tools with policy enforcement + pool injection
   for (const tool of exposedTools) {
     wrapToolRun(tool, {
       environmentManager,
@@ -73,10 +99,11 @@ export async function startMcpServer(config: McpServerConfig): Promise<void> {
       serverVersion: config.version,
       mutatingToolNames,
       approvalExemptTools,
+      transactionManager,
     });
   }
 
-  // 7. Build intent router (optional, used internally — not exposed as a tool)
+  // 8. Build intent router (optional, used internally — not exposed as a tool)
   const isReadOnly = config.tier === "reader" || process.env.READONLY === "true";
   const requireMutationConfirmation = process.env.REQUIRE_MUTATION_CONFIRMATION !== "false";
   const toolRegistry = buildToolRegistry(tools);
@@ -87,19 +114,19 @@ export async function startMcpServer(config: McpServerConfig): Promise<void> {
     requireConfirmationForMutations: requireMutationConfirmation,
   });
 
-  // 8. Build a Map for fast tool dispatch
+  // 9. Build a Map for fast tool dispatch
   const toolMap = new Map<string, RunnableTool>();
   for (const tool of exposedTools) {
     toolMap.set(tool.name, tool);
   }
 
-  // 9. Create MCP server
+  // 10. Create MCP server
   const server = new Server(
     { name: config.name, version: config.version },
     { capabilities: { tools: {} } },
   );
 
-  // 10. Register request handlers
+  // 11. Register request handlers
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: exposedTools.map(({ name, description, inputSchema }) => ({
       name,
@@ -131,7 +158,7 @@ export async function startMcpServer(config: McpServerConfig): Promise<void> {
     }
   });
 
-  // 11. Connect transport and start
+  // 12. Connect transport and start
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

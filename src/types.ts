@@ -13,6 +13,14 @@ export interface McpServerConfig {
   version: string;
   /** Which tool-set tier to expose */
   tier: TierLevel;
+  /**
+   * Transaction mode for write operations.
+   * - "explicit": Registers begin/commit/rollback tools (AI controls lifecycle)
+   * - "batch": Registers execute_transaction tool (single-shot atomic operations)
+   * - "none": No transaction tools (current behavior)
+   * Default: "explicit" for writer/admin tiers, always "none" for reader tier.
+   */
+  transactionMode?: "explicit" | "batch" | "none";
 }
 
 // ─── Intent routing ─────────────────────────────────────────────────────────
@@ -79,4 +87,5 @@ export interface WrapToolRunOptions {
   serverVersion: string;
   mutatingToolNames: Set<string>;
   approvalExemptTools: Set<string>;
+  transactionManager?: import("./transactions/TransactionManager.js").TransactionManager;
 }

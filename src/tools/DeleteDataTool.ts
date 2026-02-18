@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { createRequest } from "../transactions/TransactionManager.js";
 
 export class DeleteDataTool implements Tool {
   [key: string]: any;
@@ -53,7 +54,7 @@ export class DeleteDataTool implements Tool {
 
       // Step 1: Get count of affected rows
       const countQuery = `SELECT COUNT(*) as affectedRows FROM ${tableName} WHERE ${whereClause}`;
-      const countRequest = new sql.Request(params.pool);
+      const countRequest = createRequest(params);
       const countResult = await countRequest.query(countQuery);
       const affectedRows = countResult.recordset[0].affectedRows;
 
@@ -79,7 +80,7 @@ export class DeleteDataTool implements Tool {
       // Step 2: Show preview if not confirmed
       if (!confirmDelete) {
         const previewQuery = `SELECT TOP 10 * FROM ${tableName} WHERE ${whereClause}`;
-        const previewRequest = new sql.Request(params.pool);
+        const previewRequest = createRequest(params);
         const previewResult = await previewRequest.query(previewQuery);
 
         return {
@@ -94,7 +95,7 @@ export class DeleteDataTool implements Tool {
 
       // Step 3: Execute the delete
       query = `DELETE FROM ${tableName} WHERE ${whereClause}`;
-      const request = new sql.Request(params.pool);
+      const request = createRequest(params);
       const result = await request.query(query);
       
       return {

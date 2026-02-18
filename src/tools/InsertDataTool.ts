@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { createRequest } from "../transactions/TransactionManager.js";
 export class InsertDataTool implements Tool {
   [key: string]: any;
   name = "insert_data";
@@ -55,7 +56,7 @@ export class InsertDataTool implements Tool {
         }
       }
       const columns = firstRecordColumns.join(", ");
-      const request = new sql.Request(params.pool);
+      const request = createRequest(params);
       if (isMultipleRecords) {
         // Multiple records insert using VALUES clause - works for 1 or more records
         const valueClauses: string[] = [];

@@ -18,6 +18,7 @@ export function wrapToolRun(
     serverVersion,
     mutatingToolNames,
     approvalExemptTools,
+    transactionManager,
   } = options;
 
   const originalRun = tool.run.bind(tool);
@@ -95,14 +96,28 @@ export function wrapToolRun(
     // Get connection for the specified or default environment
     const pool = await environmentManager.getConnection(policy.name);
 
+    // Check for active transaction and inject it
+    let transaction: import("mssql").Transaction | undefined;
+    if (transactionManager?.hasActiveTransaction(policy.name)) {
+      const activeTxn = transactionManager.getTransaction(policy.name)!;
+      transaction = activeTxn.transaction;
+    }
+
     // Enrich args with environment info, policy, and connection pool
-    const toolArgs = {
+    const toolArgs: Record<string, any> = {
       ...rawArgs,
       environment: policy.name,
       environmentPolicy: policy,
       pool,
       mcpServerVersion: serverVersion,
     };
+
+    if (transaction) {
+      toolArgs.transaction = transaction;
+    }
+    if (transactionManager) {
+      toolArgs.transactionManager = transactionManager;
+    }
 
     try {
       const result = await originalRun(toolArgs);

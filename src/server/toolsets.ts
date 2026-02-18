@@ -1,10 +1,13 @@
 import type { RunnableTool, ToolRoutingConfig } from "../types.js";
 
+import { BeginTransactionTool } from "../tools/BeginTransactionTool.js";
+import { CommitTransactionTool } from "../tools/CommitTransactionTool.js";
 import { CreateIndexTool } from "../tools/CreateIndexTool.js";
 import { CreateTableTool } from "../tools/CreateTableTool.js";
 import { DeleteDataTool } from "../tools/DeleteDataTool.js";
 import { DescribeTableTool } from "../tools/DescribeTableTool.js";
 import { DropTableTool } from "../tools/DropTableTool.js";
+import { ExecuteTransactionTool } from "../tools/ExecuteTransactionTool.js";
 import { ExplainQueryTool } from "../tools/ExplainQueryTool.js";
 import { InsertDataTool } from "../tools/InsertDataTool.js";
 import { InspectDependenciesTool } from "../tools/InspectDependenciesTool.js";
@@ -15,6 +18,7 @@ import { ListTableTool } from "../tools/ListTableTool.js";
 import { ProfileTableTool } from "../tools/ProfileTableTool.js";
 import { ReadDataTool } from "../tools/ReadDataTool.js";
 import { RelationshipInspectorTool } from "../tools/RelationshipInspectorTool.js";
+import { RollbackTransactionTool } from "../tools/RollbackTransactionTool.js";
 import { RunScriptTool } from "../tools/RunScriptTool.js";
 import { SearchSchemaTool } from "../tools/SearchSchemaTool.js";
 import { TestConnectionTool } from "../tools/TestConnectionTool.js";
@@ -25,11 +29,14 @@ import { ValidateEnvironmentConfigTool } from "../tools/ValidateEnvironmentConfi
 
 export function createAllToolInstances() {
   return {
+    beginTransactionTool: new BeginTransactionTool() as RunnableTool,
+    commitTransactionTool: new CommitTransactionTool() as RunnableTool,
     createIndexTool: new CreateIndexTool() as RunnableTool,
     createTableTool: new CreateTableTool() as RunnableTool,
     deleteDataTool: new DeleteDataTool() as RunnableTool,
     describeTableTool: new DescribeTableTool() as RunnableTool,
     dropTableTool: new DropTableTool() as RunnableTool,
+    executeTransactionTool: new ExecuteTransactionTool() as RunnableTool,
     explainQueryTool: new ExplainQueryTool() as RunnableTool,
     insertDataTool: new InsertDataTool() as RunnableTool,
     inspectDependenciesTool: new InspectDependenciesTool() as RunnableTool,
@@ -40,6 +47,7 @@ export function createAllToolInstances() {
     profileTableTool: new ProfileTableTool() as RunnableTool,
     readDataTool: new ReadDataTool() as RunnableTool,
     relationshipInspectorTool: new RelationshipInspectorTool() as RunnableTool,
+    rollbackTransactionTool: new RollbackTransactionTool() as RunnableTool,
     runScriptTool: new RunScriptTool() as RunnableTool,
     searchSchemaTool: new SearchSchemaTool() as RunnableTool,
     testConnectionTool: new TestConnectionTool() as RunnableTool,
@@ -92,6 +100,22 @@ export function getAdminTools(t: AllTools): RunnableTool[] {
   ];
 }
 
+// ─── Transaction tool lists ────────────────────────────────────────────────
+
+/** Explicit mode: begin/commit/rollback tools */
+export function getExplicitTransactionTools(t: AllTools): RunnableTool[] {
+  return [
+    t.beginTransactionTool,
+    t.commitTransactionTool,
+    t.rollbackTransactionTool,
+  ];
+}
+
+/** Batch mode: single execute_transaction tool */
+export function getBatchTransactionTools(t: AllTools): RunnableTool[] {
+  return [t.executeTransactionTool];
+}
+
 // ─── Mutating tool sets per tier ────────────────────────────────────────────
 
 /** Reader: no mutations */
@@ -102,6 +126,10 @@ export const WRITER_MUTATING_TOOLS = new Set([
   "insert_data",
   "delete_data",
   "update_data",
+  "begin_transaction",
+  "commit_transaction",
+  "rollback_transaction",
+  "execute_transaction",
 ]);
 
 /** Admin/server: data mutation + DDL */
@@ -112,6 +140,10 @@ export const ADMIN_MUTATING_TOOLS = new Set([
   "create_table",
   "create_index",
   "drop_table",
+  "begin_transaction",
+  "commit_transaction",
+  "rollback_transaction",
+  "execute_transaction",
 ]);
 
 // ─── Approval-exempt tools (read-only, no data modification) ────────────────

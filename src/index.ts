@@ -49,6 +49,8 @@ export {
   getReaderTools,
   getWriterTools,
   getAdminTools,
+  getExplicitTransactionTools,
+  getBatchTransactionTools,
   buildToolRegistry,
   READER_MUTATING_TOOLS,
   WRITER_MUTATING_TOOLS,
@@ -58,16 +60,23 @@ export {
   ADMIN_APPROVAL_EXEMPT,
 } from "./server/toolsets.js";
 
+// ─── Transactions ──────────────────────────────────────────────────────────
+export { TransactionManager, createRequest } from "./transactions/TransactionManager.js";
+export type { ActiveTransaction } from "./transactions/TransactionManager.js";
+
 // ─── Shims ──────────────────────────────────────────────────────────────────
 export { initShims } from "./shims.js";
 
 // ─── Tools ──────────────────────────────────────────────────────────────────
 export {
+  BeginTransactionTool,
+  CommitTransactionTool,
   CreateIndexTool,
   CreateTableTool,
   DeleteDataTool,
   DescribeTableTool,
   DropTableTool,
+  ExecuteTransactionTool,
   ExplainQueryTool,
   InsertDataTool,
   InspectDependenciesTool,
@@ -78,6 +87,7 @@ export {
   ProfileTableTool,
   ReadDataTool,
   RelationshipInspectorTool,
+  RollbackTransactionTool,
   RunScriptTool,
   SearchSchemaTool,
   TestConnectionTool,
