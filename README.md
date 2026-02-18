@@ -30,6 +30,8 @@ The `tier` parameter controls which tools are registered with the MCP server:
 | `writer` | 17 | Reader tools + `insert_data`, `update_data`, `delete_data` |
 | `admin` | 20 | Writer tools + `create_table`, `create_index`, `drop_table` |
 
+**[Config Builder](https://connorbritain.github.io/mssql-mcp-config-builder/)** — Visual wizard to generate configuration files for consumer packages.
+
 ## Exports
 
 ### Server Entry Point
