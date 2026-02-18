@@ -101,7 +101,11 @@ export async function startMcpServer(config: McpServerConfig): Promise<void> {
 
   // 10. Register request handlers
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: exposedTools,
+    tools: exposedTools.map(({ name, description, inputSchema }) => ({
+      name,
+      description,
+      inputSchema,
+    })),
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
