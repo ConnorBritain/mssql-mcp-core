@@ -92,7 +92,7 @@ export class EnvironmentManager {
         const dotenvPath = process.env.DOTENV_PATH;
         if (dotenvPath) {
           secretsConfig = { providers: [{ type: "env" }, { type: "dotenv", path: dotenvPath }] };
-          console.log(`Using DOTENV_PATH fallback: ${dotenvPath}`);
+          console.error(`Using DOTENV_PATH fallback: ${dotenvPath}`);
         }
       }
       this.secretResolver = createSecretResolver(secretsConfig);
@@ -105,7 +105,7 @@ export class EnvironmentManager {
         this.environments.set(resolvedEnv.name, resolvedEnv);
       }
 
-      console.log(`Loaded ${this.environments.size} environment(s) from ${resolvedPath}`);
+      console.error(`Loaded ${this.environments.size} environment(s) from ${resolvedPath}`);
     } catch (error) {
       console.error(`Failed to load environment config: ${error}`);
       this.loadFromEnvVars();
@@ -140,7 +140,7 @@ export class EnvironmentManager {
 
     this.environments.set("default", defaultEnv);
     this.defaultEnvironment = "default";
-    console.log("Loaded default environment from environment variables");
+    console.error("Loaded default environment from environment variables");
   }
 
   getEnvironment(name?: string): EnvironmentConfig {
@@ -406,7 +406,7 @@ export class EnvironmentManager {
     for (const [name, { pool }] of this.connections.entries()) {
       if (pool.connected) {
         await pool.close();
-        console.log(`Closed connection for environment '${name}'`);
+        console.error(`Closed connection for environment '${name}'`);
       }
     }
     this.connections.clear();

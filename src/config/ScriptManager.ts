@@ -85,7 +85,7 @@ export class ScriptManager {
         });
       }
 
-      console.log(`Loaded ${this.scripts.size} named script(s) from ${this.scriptsPath}`);
+      console.error(`Loaded ${this.scripts.size} named script(s) from ${this.scriptsPath}`);
     } catch (error) {
       console.error(`Failed to load scripts manifest: ${error}`);
     }

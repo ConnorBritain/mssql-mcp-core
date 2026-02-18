@@ -67,7 +67,7 @@ class DotenvProvider implements SecretProvider {
           this.cache.set(key, value);
         }
       }
-      console.log(`Loaded ${this.cache.size} secret(s) from dotenv file: ${filePath}`);
+      console.error(`Loaded ${this.cache.size} secret(s) from dotenv file: ${filePath}`);
     } catch (error) {
       console.warn(`Failed to read dotenv file at ${filePath}: ${error}`);
     }

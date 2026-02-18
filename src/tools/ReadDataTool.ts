@@ -315,7 +315,7 @@ export class ReadDataTool implements Tool {
       }
 
       // Log the query for audit purposes (in production, consider more secure logging)
-      console.log(
+      console.error(
         `Executing validated SELECT query${database ? ` on [${database}]` : ""}${limitAdded ? ` (auto-limited to ${maxRowsToUse} rows)` : ""}: ${limitedQuery.substring(0, 200)}${limitedQuery.length > 200 ? "..." : ""}`
       );
 
