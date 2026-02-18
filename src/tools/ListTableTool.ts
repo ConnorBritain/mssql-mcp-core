@@ -47,7 +47,7 @@ export class ListTableTool implements Tool {
       const request = new sql.Request(params.pool);
       const schemaFilter =
         schemas && schemas.length > 0
-          ? `AND TABLE_SCHEMA IN (${schemas.map((p: string) => `'${p.replace(/'/g, "''")}'`).join(", ")})`
+          ? `AND t.TABLE_SCHEMA IN (${schemas.map((p: string) => `'${p.replace(/'/g, "''")}'`).join(", ")})`
           : "";
 
       // Build query with optional database prefix
@@ -56,17 +56,17 @@ export class ListTableTool implements Tool {
         const safeDbName = database.replace(/]/g, "]]");
         query = `
           USE [${safeDbName}];
-          SELECT TABLE_SCHEMA + '.' + TABLE_NAME AS table_name, TABLE_SCHEMA, TABLE_NAME
-          FROM INFORMATION_SCHEMA.TABLES
-          WHERE TABLE_TYPE = 'BASE TABLE' ${schemaFilter}
-          ORDER BY TABLE_SCHEMA, TABLE_NAME
+          SELECT t.TABLE_SCHEMA + '.' + t.TABLE_NAME AS table_name, t.TABLE_SCHEMA, t.TABLE_NAME
+          FROM INFORMATION_SCHEMA.TABLES t
+          WHERE t.TABLE_TYPE = 'BASE TABLE' ${schemaFilter}
+          ORDER BY t.TABLE_SCHEMA, t.TABLE_NAME
         `;
       } else {
         query = `
-          SELECT TABLE_SCHEMA + '.' + TABLE_NAME AS table_name, TABLE_SCHEMA, TABLE_NAME
-          FROM INFORMATION_SCHEMA.TABLES
-          WHERE TABLE_TYPE = 'BASE TABLE' ${schemaFilter}
-          ORDER BY TABLE_SCHEMA, TABLE_NAME
+          SELECT t.TABLE_SCHEMA + '.' + t.TABLE_NAME AS table_name, t.TABLE_SCHEMA, t.TABLE_NAME
+          FROM INFORMATION_SCHEMA.TABLES t
+          WHERE t.TABLE_TYPE = 'BASE TABLE' ${schemaFilter}
+          ORDER BY t.TABLE_SCHEMA, t.TABLE_NAME
         `;
       }
 
