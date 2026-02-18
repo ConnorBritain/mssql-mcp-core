@@ -55,6 +55,8 @@ export class EnvironmentManager {
   private defaultEnvironment?: string;
   private readonly connections: Map<string, { pool: sql.ConnectionPool; expiresOn?: Date }>;
   private secretResolver: SecretResolver;
+  private refreshTimer?: ReturnType<typeof setInterval>;
+  private rawEnvironments?: EnvironmentConfig[]; // unresolved configs for re-resolution on refresh
 
   private constructor() {
     this.environments = new Map();
@@ -107,11 +109,17 @@ export class EnvironmentManager {
 
       this.defaultEnvironment = config.defaultEnvironment;
 
+      // Store raw configs so we can re-resolve when secrets rotate
+      this.rawEnvironments = config.environments;
+
       for (const env of config.environments) {
         // Resolve any secret placeholders in the config
         const resolvedEnv = this.secretResolver.resolveObject(env);
         this.environments.set(resolvedEnv.name, resolvedEnv);
       }
+
+      // Start background refresh timer if any provider has a TTL
+      this.startRefreshTimer();
 
       console.error(`Loaded ${this.environments.size} environment(s) from ${resolvedPath}`);
     } catch (error) {
@@ -415,7 +423,67 @@ export class EnvironmentManager {
     };
   }
 
+  /**
+   * Start a background timer that periodically checks vault provider TTLs
+   * and re-resolves environment configs when secrets change.
+   */
+  private startRefreshTimer(): void {
+    const ttl = this.secretResolver.shortestTtlSeconds;
+    if (!ttl) return; // no providers with TTL configured
+
+    // Check at half the shortest TTL interval (but at least every 30s, at most every 5min)
+    const intervalMs = Math.max(30_000, Math.min(ttl * 500, 300_000));
+
+    console.error(`[secret-refresh] Starting background refresh timer (interval: ${Math.round(intervalMs / 1000)}s, shortest TTL: ${ttl}s)`);
+
+    this.refreshTimer = setInterval(async () => {
+      try {
+        const changed = await this.secretResolver.refreshProviders();
+        if (changed && this.rawEnvironments) {
+          console.error("[secret-refresh] Secrets changed — re-resolving environment configs");
+          // Re-resolve all environments with updated secrets
+          for (const env of this.rawEnvironments) {
+            const resolvedEnv = this.secretResolver.resolveObject(env);
+            const existing = this.environments.get(resolvedEnv.name);
+
+            // Check if credential fields actually changed
+            if (existing &&
+              (existing.password !== resolvedEnv.password ||
+               existing.username !== resolvedEnv.username)) {
+              console.error(`[secret-refresh] Credentials changed for '${resolvedEnv.name}' — invalidating connection pool`);
+              // Close the stale connection pool so it gets recreated with new credentials
+              const cached = this.connections.get(resolvedEnv.name);
+              if (cached?.pool?.connected) {
+                try { await cached.pool.close(); } catch { /* ignore */ }
+              }
+              this.connections.delete(resolvedEnv.name);
+            }
+
+            this.environments.set(resolvedEnv.name, resolvedEnv);
+          }
+        }
+      } catch (error: any) {
+        console.error(`[secret-refresh] Background refresh failed: ${error.message}`);
+      }
+    }, intervalMs);
+
+    // Don't let the timer prevent process exit
+    this.refreshTimer.unref();
+  }
+
+  /**
+   * Stop the background secret refresh timer.
+   */
+  stopRefreshTimer(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = undefined;
+      console.error("[secret-refresh] Stopped background refresh timer");
+    }
+  }
+
   async closeAll(): Promise<void> {
+    this.stopRefreshTimer();
     for (const [name, { pool }] of this.connections.entries()) {
       if (pool.connected) {
         await pool.close();

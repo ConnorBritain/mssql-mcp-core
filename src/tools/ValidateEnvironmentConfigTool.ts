@@ -411,6 +411,15 @@ Returns validation results for each environment with errors and warnings.`;
             results.push({ type: "hashicorp-vault", valid: true, error: undefined });
           }
         }
+
+        // Validate ttlSeconds for vault providers
+        if (["azure-keyvault", "aws-secrets-manager", "hashicorp-vault"].includes(provider.type)) {
+          if (provider.ttlSeconds !== undefined) {
+            if (typeof provider.ttlSeconds !== "number" || provider.ttlSeconds < 30) {
+              results.push({ type: provider.type, valid: false, error: "ttlSeconds must be a number >= 30" });
+            }
+          }
+        }
       }
 
       return results;

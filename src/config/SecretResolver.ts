@@ -5,6 +5,12 @@ export interface SecretProvider {
   type: string;
   resolve(name: string): string | undefined;
   initialize?(): Promise<void>;
+  /** Re-fetch secrets from the backing store. Returns true if any values changed. */
+  refresh?(): Promise<boolean>;
+  /** TTL in seconds. If set, the provider's cache expires after this duration. */
+  ttlSeconds?: number;
+  /** Timestamp of last successful initialization or refresh. */
+  lastRefreshedAt?: number;
 }
 
 export interface SecretProviderConfig {
@@ -21,6 +27,8 @@ export interface SecretProviderConfig {
   vaultPath?: string;
   // Common: explicit list of secrets to pre-fetch
   secrets?: string[];
+  // TTL: how long cached secrets remain valid (seconds). 0 or omitted = no expiry.
+  ttlSeconds?: number;
   [key: string]: any;
 }
 
@@ -125,16 +133,34 @@ class FileProvider implements SecretProvider {
  */
 class AzureKeyVaultProvider implements SecretProvider {
   type = "azure-keyvault";
+  ttlSeconds?: number;
+  lastRefreshedAt?: number;
   private cache = new Map<string, string>();
   private readonly vaultUrl: string;
   private readonly secretNames?: string[];
 
-  constructor(config: { vaultUrl: string; secrets?: string[] }) {
+  constructor(config: { vaultUrl: string; secrets?: string[]; ttlSeconds?: number }) {
     this.vaultUrl = config.vaultUrl;
     this.secretNames = config.secrets;
+    this.ttlSeconds = config.ttlSeconds;
   }
 
   async initialize(): Promise<void> {
+    await this.fetchSecrets();
+  }
+
+  async refresh(): Promise<boolean> {
+    const oldCache = new Map(this.cache);
+    await this.fetchSecrets();
+    // Check if any values changed
+    if (oldCache.size !== this.cache.size) return true;
+    for (const [key, value] of this.cache) {
+      if (oldCache.get(key) !== value) return true;
+    }
+    return false;
+  }
+
+  private async fetchSecrets(): Promise<void> {
     try {
       const { DefaultAzureCredential } = await import("@azure/identity");
       const { SecretClient } = await import("@azure/keyvault-secrets");
@@ -142,13 +168,14 @@ class AzureKeyVaultProvider implements SecretProvider {
       const credential = new DefaultAzureCredential();
       const client = new SecretClient(this.vaultUrl, credential);
 
+      const newCache = new Map<string, string>();
+
       if (this.secretNames && this.secretNames.length > 0) {
-        // Fetch only the explicitly listed secrets
         const results = await Promise.allSettled(
           this.secretNames.map(async (name) => {
             const secret = await client.getSecret(name);
             if (secret.value !== undefined) {
-              this.cache.set(name, secret.value);
+              newCache.set(name, secret.value);
             }
           })
         );
@@ -161,12 +188,11 @@ class AzureKeyVaultProvider implements SecretProvider {
           );
         }
       } else {
-        // List and fetch all secrets in the vault
         for await (const properties of client.listPropertiesOfSecrets()) {
           try {
             const secret = await client.getSecret(properties.name);
             if (secret.value !== undefined) {
-              this.cache.set(properties.name, secret.value);
+              newCache.set(properties.name, secret.value);
             }
           } catch (err: any) {
             console.warn(`[azure-keyvault] Failed to fetch secret '${properties.name}': ${err.message}`);
@@ -174,9 +200,11 @@ class AzureKeyVaultProvider implements SecretProvider {
         }
       }
 
+      this.cache = newCache;
+      this.lastRefreshedAt = Date.now();
       console.error(`[azure-keyvault] Loaded ${this.cache.size} secret(s) from ${this.vaultUrl}`);
     } catch (error: any) {
-      console.error(`[azure-keyvault] Failed to initialize: ${error.message}`);
+      console.error(`[azure-keyvault] Failed to fetch secrets: ${error.message}`);
       throw error;
     }
   }
@@ -193,16 +221,33 @@ class AzureKeyVaultProvider implements SecretProvider {
  */
 class AwsSecretsManagerProvider implements SecretProvider {
   type = "aws-secrets-manager";
+  ttlSeconds?: number;
+  lastRefreshedAt?: number;
   private cache = new Map<string, string>();
   private readonly region: string;
   private readonly secretNames: string[];
 
-  constructor(config: { region: string; secrets: string[] }) {
+  constructor(config: { region: string; secrets: string[]; ttlSeconds?: number }) {
     this.region = config.region;
     this.secretNames = config.secrets;
+    this.ttlSeconds = config.ttlSeconds;
   }
 
   async initialize(): Promise<void> {
+    await this.fetchSecrets();
+  }
+
+  async refresh(): Promise<boolean> {
+    const oldCache = new Map(this.cache);
+    await this.fetchSecrets();
+    if (oldCache.size !== this.cache.size) return true;
+    for (const [key, value] of this.cache) {
+      if (oldCache.get(key) !== value) return true;
+    }
+    return false;
+  }
+
+  private async fetchSecrets(): Promise<void> {
     let sdk: any;
     try {
       sdk = await import("@aws-sdk/client-secrets-manager");
@@ -215,8 +260,8 @@ class AwsSecretsManagerProvider implements SecretProvider {
 
     try {
       const client = new sdk.SecretsManagerClient({ region: this.region });
+      const newCache = new Map<string, string>();
 
-      // Use BatchGetSecretValue if available and multiple secrets requested
       if (this.secretNames.length > 1 && sdk.BatchGetSecretValueCommand) {
         try {
           const response = await client.send(
@@ -227,38 +272,38 @@ class AwsSecretsManagerProvider implements SecretProvider {
 
           for (const secret of response.SecretValues ?? []) {
             if (secret.Name && secret.SecretString) {
-              this.cache.set(secret.Name, secret.SecretString);
+              newCache.set(secret.Name, secret.SecretString);
             }
           }
 
-          // Report any errors
           for (const err of response.Errors ?? []) {
             console.warn(`[aws-secrets-manager] Failed to fetch '${err.SecretId}': ${err.Message}`);
           }
         } catch {
-          // Fall back to individual GetSecretValue calls
-          await this.fetchIndividually(client, sdk);
+          await this.fetchIndividually(client, sdk, newCache);
         }
       } else {
-        await this.fetchIndividually(client, sdk);
+        await this.fetchIndividually(client, sdk, newCache);
       }
 
+      this.cache = newCache;
+      this.lastRefreshedAt = Date.now();
       console.error(`[aws-secrets-manager] Loaded ${this.cache.size} secret(s) from region ${this.region}`);
     } catch (error: any) {
       if (error.message?.includes("not installed")) throw error;
-      console.error(`[aws-secrets-manager] Failed to initialize: ${error.message}`);
+      console.error(`[aws-secrets-manager] Failed to fetch secrets: ${error.message}`);
       throw error;
     }
   }
 
-  private async fetchIndividually(client: any, sdk: any): Promise<void> {
+  private async fetchIndividually(client: any, sdk: any, target: Map<string, string>): Promise<void> {
     const results = await Promise.allSettled(
       this.secretNames.map(async (name) => {
         const response = await client.send(
           new sdk.GetSecretValueCommand({ SecretId: name })
         );
         if (response.SecretString) {
-          this.cache.set(name, response.SecretString);
+          target.set(name, response.SecretString);
         }
       })
     );
@@ -284,16 +329,19 @@ class AwsSecretsManagerProvider implements SecretProvider {
  */
 class HashiCorpVaultProvider implements SecretProvider {
   type = "hashicorp-vault";
+  ttlSeconds?: number;
+  lastRefreshedAt?: number;
   private cache = new Map<string, string>();
   private readonly address: string;
   private readonly vaultPath: string;
   private readonly token: string;
   private readonly secretNames?: string[];
 
-  constructor(config: { address: string; token?: string; path: string; secrets?: string[] }) {
+  constructor(config: { address: string; token?: string; path: string; secrets?: string[]; ttlSeconds?: number }) {
     this.address = config.address.replace(/\/+$/, ""); // strip trailing slash
     this.vaultPath = config.path;
     this.secretNames = config.secrets;
+    this.ttlSeconds = config.ttlSeconds;
 
     // Resolve token: config > VAULT_TOKEN env > ~/.vault-token file
     this.token = config.token || process.env.VAULT_TOKEN || "";
@@ -315,10 +363,21 @@ class HashiCorpVaultProvider implements SecretProvider {
         "set VAULT_TOKEN env var, or create ~/.vault-token"
       );
     }
+    await this.fetchSecrets();
+  }
 
+  async refresh(): Promise<boolean> {
+    const oldCache = new Map(this.cache);
+    await this.fetchSecrets();
+    if (oldCache.size !== this.cache.size) return true;
+    for (const [key, value] of this.cache) {
+      if (oldCache.get(key) !== value) return true;
+    }
+    return false;
+  }
+
+  private async fetchSecrets(): Promise<void> {
     try {
-      // Read from KV v2 path: GET /v1/{path}
-      // The path should be in KV v2 format, e.g., "secret/data/mssql"
       const url = `${this.address}/v1/${this.vaultPath}`;
       const response = await fetch(url, {
         headers: {
@@ -332,30 +391,29 @@ class HashiCorpVaultProvider implements SecretProvider {
       }
 
       const json = await response.json() as any;
-
-      // KV v2 returns data nested under data.data
       const secretData: Record<string, any> = json.data?.data ?? json.data ?? {};
+      const newCache = new Map<string, string>();
 
       if (this.secretNames && this.secretNames.length > 0) {
-        // Only cache the requested secrets
         for (const name of this.secretNames) {
           const value = secretData[name];
           if (value !== undefined) {
-            this.cache.set(name, String(value));
+            newCache.set(name, String(value));
           } else {
             console.warn(`[hashicorp-vault] Secret '${name}' not found at path '${this.vaultPath}'`);
           }
         }
       } else {
-        // Cache all secrets from the path
         for (const [key, value] of Object.entries(secretData)) {
-          this.cache.set(key, String(value));
+          newCache.set(key, String(value));
         }
       }
 
+      this.cache = newCache;
+      this.lastRefreshedAt = Date.now();
       console.error(`[hashicorp-vault] Loaded ${this.cache.size} secret(s) from ${this.address}`);
     } catch (error: any) {
-      console.error(`[hashicorp-vault] Failed to initialize: ${error.message}`);
+      console.error(`[hashicorp-vault] Failed to fetch secrets: ${error.message}`);
       throw error;
     }
   }
@@ -448,6 +506,53 @@ export class SecretResolver {
     return { resolved, unresolved };
   }
 
+  /**
+   * Refresh any providers whose TTL has expired.
+   * Returns true if any secret values changed (callers should re-resolve configs).
+   */
+  async refreshProviders(): Promise<boolean> {
+    let anyChanged = false;
+    const now = Date.now();
+
+    for (const provider of this.providers) {
+      if (!provider.refresh || !provider.ttlSeconds) continue;
+
+      const elapsed = provider.lastRefreshedAt
+        ? (now - provider.lastRefreshedAt) / 1000
+        : Infinity;
+
+      if (elapsed >= provider.ttlSeconds) {
+        try {
+          const changed = await provider.refresh();
+          if (changed) {
+            console.error(`[secret-refresh] Provider '${provider.type}' returned updated secrets`);
+            anyChanged = true;
+          }
+        } catch (error: any) {
+          // Log but don't throw — stale secrets are better than crashing
+          console.error(`[secret-refresh] Failed to refresh '${provider.type}': ${error.message}`);
+        }
+      }
+    }
+
+    return anyChanged;
+  }
+
+  /**
+   * Returns the shortest TTL among all providers that have one, or undefined if none.
+   */
+  get shortestTtlSeconds(): number | undefined {
+    let shortest: number | undefined;
+    for (const provider of this.providers) {
+      if (provider.ttlSeconds && provider.ttlSeconds > 0) {
+        if (shortest === undefined || provider.ttlSeconds < shortest) {
+          shortest = provider.ttlSeconds;
+        }
+      }
+    }
+    return shortest;
+  }
+
   get providerCount(): number {
     return this.providers.length;
   }
@@ -496,6 +601,7 @@ export async function createSecretResolver(config?: SecretsConfig): Promise<Secr
         providers.push(new AzureKeyVaultProvider({
           vaultUrl: pc.vaultUrl,
           secrets: pc.secrets,
+          ttlSeconds: pc.ttlSeconds,
         }));
         break;
       }
@@ -512,6 +618,7 @@ export async function createSecretResolver(config?: SecretsConfig): Promise<Secr
         providers.push(new AwsSecretsManagerProvider({
           region: pc.region,
           secrets: pc.secrets,
+          ttlSeconds: pc.ttlSeconds,
         }));
         break;
       }
@@ -530,6 +637,7 @@ export async function createSecretResolver(config?: SecretsConfig): Promise<Secr
           token: pc.token,
           path: pc.vaultPath,
           secrets: pc.secrets,
+          ttlSeconds: pc.ttlSeconds,
         }));
         break;
       }
