@@ -68,6 +68,10 @@ export class RelationshipInspectorTool implements Tool {
         type: "boolean",
         description: "Include relationships where other tables reference this table (default true).",
       },
+      environment: {
+        type: "string",
+        description: "Optional environment name to target.",
+      },
     },
     required: ["tableName"],
   } as any;

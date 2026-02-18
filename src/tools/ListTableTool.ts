@@ -23,6 +23,10 @@ export class ListTableTool implements Tool {
         },
         minItems: 0,
       },
+      environment: {
+        type: "string",
+        description: "Optional environment name to target.",
+      },
     },
     required: [],
   } as any;

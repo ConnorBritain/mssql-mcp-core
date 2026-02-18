@@ -116,6 +116,10 @@ export class ProfileTableTool implements Tool {
         items: { type: "string" },
         description: "Specific columns to profile (default: all)",
       },
+      environment: {
+        type: "string",
+        description: "Optional environment name to target.",
+      },
     },
     required: ["tableName"],
   } as any;

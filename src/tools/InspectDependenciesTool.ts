@@ -50,6 +50,10 @@ export class InspectDependenciesTool implements Tool {
         type: "boolean",
         description: "Include column-level dependency details. Default: false",
       },
+      environment: {
+        type: "string",
+        description: "Optional environment name to target.",
+      },
     },
     required: ["objectName"],
   } as any;

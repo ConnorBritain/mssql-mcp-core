@@ -21,10 +21,14 @@ export class CreateIndexTool implements Tool {
         description: "Whether the index should enforce uniqueness (default: false)",
         default: false
       },
-      isClustered: { 
-        type: "boolean", 
+      isClustered: {
+        type: "boolean",
         description: "Whether the index should be clustered (default: false)",
         default: false
+      },
+      environment: {
+        type: "string",
+        description: "Optional environment name to target.",
       },
     },
     required: ["tableName", "indexName", "columns"],

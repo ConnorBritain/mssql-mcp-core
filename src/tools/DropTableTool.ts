@@ -8,7 +8,11 @@ export class DropTableTool implements Tool {
   inputSchema = {
     type: "object",
     properties: {
-      tableName: { type: "string", description: "Name of the table to drop" }
+      tableName: { type: "string", description: "Name of the table to drop" },
+      environment: {
+        type: "string",
+        description: "Optional environment name to target.",
+      },
     },
     required: ["tableName"],
   } as any;

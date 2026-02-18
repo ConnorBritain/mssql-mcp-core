@@ -24,6 +24,10 @@ export class ReadDataTool implements Tool {
         type: "number",
         description: "Optional override for maximum rows returned (1-100000).",
       },
+      environment: {
+        type: "string",
+        description: "Optional environment name to target.",
+      },
     },
     required: ["query"],
   } as any;

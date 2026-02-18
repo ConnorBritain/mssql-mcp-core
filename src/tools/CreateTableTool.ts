@@ -9,6 +9,10 @@ export class CreateTableTool implements Tool {
     type: "object",
     properties: {
       tableName: { type: "string", description: "Name of the table to create" },
+      environment: {
+        type: "string",
+        description: "Optional environment name to target.",
+      },
       columns: {
         type: "array",
         description: "Array of column definitions (e.g., [{ name: 'id', type: 'INT PRIMARY KEY' }, ...])",

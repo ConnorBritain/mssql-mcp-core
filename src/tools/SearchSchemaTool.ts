@@ -78,6 +78,10 @@ export class SearchSchemaTool implements Tool {
       columnOffset: {
         type: "number",
         description: "Number of column rows to skip (for pagination)."
+      },
+      environment: {
+        type: "string",
+        description: "Optional environment name to target."
       }
     }
   } as const;

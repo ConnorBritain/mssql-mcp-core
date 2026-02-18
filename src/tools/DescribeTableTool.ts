@@ -19,6 +19,10 @@ export class DescribeTableTool implements Tool {
         type: "string",
         description: "Optional: Target database name for server-level access environments.",
       },
+      environment: {
+        type: "string",
+        description: "Optional environment name to target.",
+      },
     },
     required: ["tableName"],
   } as any;

@@ -11,7 +11,11 @@ export class InsertDataTool implements Tool {
         type: "string", 
         description: "Name of the table to insert data into" 
       },
-      data: { 
+      environment: {
+        type: "string",
+        description: "Optional environment name to target.",
+      },
+      data: {
         oneOf: [
           { 
             type: "object", 
