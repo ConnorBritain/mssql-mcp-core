@@ -53,10 +53,13 @@ export class AuditLogger {
 
   private redactArguments(args: Record<string, any>): Record<string, any> {
     if (!this.redactSensitiveData) {
-      return args;
+      // Still strip non-serializable objects even when redaction is off
+      const { pool, environmentPolicy, ...safe } = args;
+      return safe;
     }
 
-    const redacted = { ...args };
+    const { pool, environmentPolicy, ...rest } = args;
+    const redacted = { ...rest };
     const sensitiveKeys = [
       "password",
       "secret",
