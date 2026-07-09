@@ -196,6 +196,26 @@ npm run watch   # Watch mode for development
 | Writer | `@connorbritain/mssql-mcp-writer` | Read + write |
 | Server | `@connorbritain/mssql-mcp-server` | Full admin |
 
+## Azure AD Authentication
+
+When `authMode` is `"aad"`, the credential used to obtain an Azure AD token can be selected via the `AAD_CREDENTIAL` environment variable:
+
+| `AAD_CREDENTIAL` value | Credential used | Notes |
+|------------------------|-----------------|-------|
+| unset or `browser` | `InteractiveBrowserCredential` | **Default** — opens a browser popup. Suitable for interactive desktop use. |
+| `azcli` | `DefaultAzureCredential` | Uses the Azure CLI token (`az login`). Ideal for headless/CI/server scenarios. |
+| `default` | `DefaultAzureCredential` | Alias for `azcli`. Tries managed identity, env vars, az CLI, etc. in order. |
+
+When using `azcli` or `default`, set `AZURE_TENANT_ID` to your tenant ID so `DefaultAzureCredential` targets the correct tenant.
+
+**Example (headless/CLI-token setup):**
+```bash
+export AAD_CREDENTIAL=azcli
+export AZURE_TENANT_ID=<your-tenant-id>
+```
+
+All other behavior (token caching, `getToken` scope, connection pool) is unchanged.
+
 ## License
 
 MIT
