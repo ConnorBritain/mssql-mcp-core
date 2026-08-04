@@ -53,6 +53,8 @@ export class ListEnvironmentsTool implements Tool {
           deniedDatabases: env.deniedDatabases || null,
           allowedSchemas: env.allowedSchemas || null,
           deniedSchemas: env.deniedSchemas || null,
+          allowedColumns: env.allowedColumns || null,
+          deniedColumns: env.deniedColumns || null,
           maxRowsDefault: env.maxRowsDefault || null,
           requireApproval: env.requireApproval ?? false,
         };

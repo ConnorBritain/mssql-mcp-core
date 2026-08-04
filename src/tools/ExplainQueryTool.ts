@@ -1,6 +1,7 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { getEnvironmentManager } from "../config/EnvironmentManager.js";
+import { enforceQueryColumnPolicy } from "../security/queryColumnPolicy.js";
 
 export class ExplainQueryTool implements Tool {
   [key: string]: any;
@@ -38,51 +39,54 @@ export class ExplainQueryTool implements Tool {
     }
 
     const sanitizedQuery = query.trim();
+    const policyResult = enforceQueryColumnPolicy(sanitizedQuery, params?.environmentPolicy);
+    if (!policyResult.allowed) {
+      return { success: false, message: `Column policy validation failed: ${policyResult.reason}`, error: "COLUMN_ACCESS_DENIED" };
+    }
     const envManager = await getEnvironmentManager();
     const pool = await envManager.getConnection(environment);
 
-    let showplanEnabled = false;
+    // SHOWPLAN_XML is connection-scoped, so "SET SHOWPLAN_XML ON", the query, and the reset MUST
+    // run on the same connection. The previous code used three separate pooled requests, so the
+    // pool could send the query to a different connection where SHOWPLAN was off and EXECUTE the
+    // caller's SQL for real (a reader-tier arbitrary-execution hole). A transaction pins one
+    // connection for all three statements; we also roll it back as defense in depth, so even if a
+    // statement did execute, its data changes are undone (SQL Server DDL/DML is transactional).
+    const transaction = new sql.Transaction(pool);
+    let began = false;
     try {
-      const planRequest = new sql.Request(pool);
-      await planRequest.batch("SET SHOWPLAN_XML ON;");
-      showplanEnabled = true;
+      await transaction.begin();
+      began = true;
 
-      const explainRequest = new sql.Request(pool);
-      const result = await explainRequest.query(sanitizedQuery);
+      await transaction.request().batch("SET SHOWPLAN_XML ON;");
+      const result = await transaction.request().query(sanitizedQuery);
+      await transaction.request().batch("SET SHOWPLAN_XML OFF;");
 
-      const planOutput = result.recordset?.[0];
-      const planXml = this.extractPlanXml(planOutput);
+      await transaction.rollback();
+      began = false;
 
+      const planXml = this.extractPlanXml(result.recordset?.[0]);
       const summary = {
         success: true,
         message: "Generated estimated execution plan.",
         hasPlanXml: Boolean(planXml),
       };
 
-      if (includePlanXml && planXml) {
-        return {
-          ...summary,
-          planXml,
-        };
-      }
-
-      return summary;
+      return includePlanXml && planXml ? { ...summary, planXml } : summary;
     } catch (error) {
+      if (began) {
+        try {
+          await transaction.rollback();
+        } catch {
+          // transaction may already be aborted
+        }
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         success: false,
         message: `Failed to generate plan: ${errorMessage}`,
         error: "SHOWPLAN_FAILED",
       };
-    } finally {
-      if (showplanEnabled) {
-        try {
-          const resetRequest = new sql.Request(pool);
-          await resetRequest.batch("SET SHOWPLAN_XML OFF;");
-        } catch {
-          // ignore
-        }
-      }
     }
   }
 

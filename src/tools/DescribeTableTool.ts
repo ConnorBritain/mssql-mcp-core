@@ -1,6 +1,7 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { getEnvironmentManager } from "../config/EnvironmentManager.js";
+import { filterAllowedColumns } from "../security/columnPolicy.js";
 
 export class DescribeTableTool implements Tool {
   [key: string]: any;
@@ -108,14 +109,20 @@ export class DescribeTableTool implements Tool {
         };
       }
 
+      const columns = filterAllowedColumns(
+        (params as any).environmentPolicy,
+        `${schemaName}.${actualTableName}`,
+        result.recordset,
+      );
+
       return {
         success: true,
         message: `Described table '${schemaName}.${actualTableName}'${database ? ` in [${database}]` : ""}`,
         database: database || undefined,
         schema: schemaName,
         tableName: actualTableName,
-        columnCount: result.recordset.length,
-        columns: result.recordset,
+        columnCount: columns.length,
+        columns,
       };
     } catch (error) {
       return {

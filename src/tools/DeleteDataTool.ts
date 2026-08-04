@@ -2,6 +2,7 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { createRequest } from "../transactions/TransactionManager.js";
 import { quoteQualified, InvalidIdentifierError } from "../security/sqlIdentifier.js";
 import { buildWhereClause, InvalidFilterError, SUPPORTED_OPERATORS } from "../security/whereFilter.js";
+import { filterRecordColumns, tableReference, validateColumnNames } from "../security/columnPolicy.js";
 
 export class DeleteDataTool implements Tool {
   [key: string]: any;
@@ -68,6 +69,15 @@ export class DeleteDataTool implements Tool {
         };
       }
 
+      const columnDecision = validateColumnNames(
+        params.environmentPolicy,
+        tableReference(tableName),
+        Array.isArray(filters) ? filters.map((filter: any) => filter.column) : [],
+      );
+      if (!columnDecision.allowed) {
+        return { success: false, message: columnDecision.reason, error: "COLUMN_ACCESS_DENIED" };
+      }
+
       // Validate identifiers and filters up front, before any query executes.
       let table: string;
       const countRequest = createRequest(params);
@@ -120,7 +130,11 @@ export class DeleteDataTool implements Tool {
           needsConfirmation: true,
           message: `⚠️ WARNING: ${affectedRows} row(s) will be permanently deleted. Review the preview below and re-run with confirmDelete: true to proceed.`,
           affectedRows,
-          preview: previewResult.recordset,
+          preview: filterRecordColumns(
+            params.environmentPolicy,
+            tableReference(tableName),
+            previewResult.recordset,
+          ),
           error: "CONFIRMATION_REQUIRED",
         };
       }

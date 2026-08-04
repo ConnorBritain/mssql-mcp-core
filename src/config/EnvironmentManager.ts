@@ -42,6 +42,10 @@ export interface EnvironmentConfig {
   allowedSchemas?: string[];
   deniedSchemas?: string[];
 
+  // Column-level access controls. Keys are schema.table wildcard patterns.
+  allowedColumns?: Record<string, string[]>;
+  deniedColumns?: Record<string, string[]>;
+
   // Tier designation (for validation against package type)
   tier?: TierLevel;
 

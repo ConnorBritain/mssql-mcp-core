@@ -256,6 +256,24 @@ Returns validation results for each environment with errors and warnings.`;
       }
     }
 
+    for (const [field, policy] of [["allowedColumns", env.allowedColumns], ["deniedColumns", env.deniedColumns]] as const) {
+      if (!policy) continue;
+      for (const [tablePattern, columns] of Object.entries(policy)) {
+        if (!tablePattern.trim() || !Array.isArray(columns) || columns.length === 0 || columns.some((column) => typeof column !== "string" || !column.trim())) {
+          errors.push(`${field} must map non-empty table patterns to non-empty column-name arrays.`);
+        }
+      }
+    }
+
+    if (env.allowedColumns && env.deniedColumns) {
+      for (const pattern of Object.keys(env.allowedColumns)) {
+        const overlap = (env.allowedColumns[pattern] ?? []).filter((column) =>
+          (env.deniedColumns?.[pattern] ?? []).some((denied) => denied.toLowerCase() === column.toLowerCase()),
+        );
+        if (overlap.length > 0) warnings.push(`Columns appear in both allowedColumns and deniedColumns for '${pattern}'; deniedColumns takes precedence: ${overlap.join(", ")}`);
+      }
+    }
+
     // Check for overlapping allowed/denied schemas
     if (env.allowedSchemas && env.deniedSchemas) {
       const overlap = env.allowedSchemas.filter((s) => env.deniedSchemas!.includes(s));

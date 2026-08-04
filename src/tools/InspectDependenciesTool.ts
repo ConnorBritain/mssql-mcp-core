@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { checkColumnPolicy } from "../security/columnPolicy.js";
 
 interface DependencyReference {
   name: string;
@@ -227,12 +228,18 @@ export class InspectDependenciesTool implements Tool {
           storedProcedures,
           functions,
           triggers,
-          foreignKeys: foreignKeys.map((fk) => ({
-            table: fk.referencingTable,
-            schema: fk.referencingSchema,
-            column: fk.referencingColumn,
-            constraint: fk.constraintName,
-          })),
+          foreignKeys: foreignKeys
+            .filter((fk) => checkColumnPolicy(
+              (params as any).environmentPolicy,
+              `${fk.referencingSchema}.${fk.referencingTable}`,
+              fk.referencingColumn,
+            ).allowed)
+            .map((fk) => ({
+              table: fk.referencingTable,
+              schema: fk.referencingSchema,
+              column: fk.referencingColumn,
+              constraint: fk.constraintName,
+            })),
         },
         references: {
           tables: referencedTables,

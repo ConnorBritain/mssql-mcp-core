@@ -2,6 +2,8 @@ import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { getScriptManager, LoadedScript } from "../config/ScriptManager.js";
 import { getEnvironmentManager } from "../config/EnvironmentManager.js";
+import { enforceQueryColumnPolicy } from "../security/queryColumnPolicy.js";
+import { filterRecordColumns } from "../security/columnPolicy.js";
 
 export class RunScriptTool implements Tool {
   [key: string]: any;
@@ -116,6 +118,17 @@ export class RunScriptTool implements Tool {
         script: scriptName,
         expectedParameters: script.parameters,
         providedParameters: parameters,
+      };
+    }
+
+    const policyResult = enforceQueryColumnPolicy(resolvedSql, params.environmentPolicy);
+    if (!policyResult.allowed) {
+      return {
+        success: false,
+        error: "COLUMN_ACCESS_DENIED",
+        message: `Column policy validation failed: ${policyResult.reason}`,
+        script: scriptName,
+        environment: envName,
       };
     }
 
