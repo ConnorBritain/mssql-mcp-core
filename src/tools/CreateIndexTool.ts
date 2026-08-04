@@ -1,6 +1,7 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { quoteName, quoteQualified, InvalidIdentifierError } from "../security/sqlIdentifier.js";
+import { validateColumnNames } from "../security/columnPolicy.js";
 
 export class CreateIndexTool implements Tool {
   [key: string]: any;
@@ -51,6 +52,14 @@ export class CreateIndexTool implements Tool {
       try {
         if (!Array.isArray(columns) || columns.length === 0) {
           return { success: false, message: "'columns' must be a non-empty array." };
+        }
+        const columnDecision = validateColumnNames(
+          params.environmentPolicy,
+          `${schemaName || "dbo"}.${tableName}`,
+          columns,
+        );
+        if (!columnDecision.allowed) {
+          return { success: false, message: columnDecision.reason, error: "COLUMN_ACCESS_DENIED" };
         }
         index = quoteName(indexName);
         target = schemaName ? `${quoteName(schemaName)}.${quoteName(tableName)}` : quoteQualified(tableName);

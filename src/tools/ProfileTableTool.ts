@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { filterAllowedColumns, filterRecordColumns } from "../security/columnPolicy.js";
 
 const clampEnvInt = (value: string | undefined, fallback: number, min: number, max: number) => {
   if (!value) {
@@ -69,6 +70,7 @@ type ColumnProfile = {
 type ProfileResult = {
   success: boolean;
   message?: string;
+  error?: string;
   tableName?: string;
   schemaName?: string;
   rowCount?: number;
@@ -273,6 +275,19 @@ export class ProfileTableTool implements Tool {
         }
       }
 
+      columns = filterAllowedColumns(
+        (params as any).environmentPolicy,
+        `${schemaName}.${tableName}`,
+        columns,
+      );
+      if (!columns.length) {
+        return {
+          success: false,
+          message: `No permitted columns are available in [${schemaName}].[${tableName}].`,
+          error: "COLUMN_ACCESS_DENIED",
+        };
+      }
+
       // Filter out binary/blob types
       columns = columns.filter((c) => !this.shouldSkipType(c.dataType));
 
@@ -306,13 +321,18 @@ export class ProfileTableTool implements Tool {
 
       if (includeSamples) {
         const sampleRequest = new sql.Request(pool);
+        const sampleColumns = columns.map((column) => this.escapeIdentifier(column.columnName)).join(", ");
         const sampleQuery = `
-          SELECT TOP (${sampleSize}) *
+          SELECT TOP (${sampleSize}) ${sampleColumns}
           FROM ${fqTable}
           ORDER BY NEWID()
         `;
         const sampleResult = await sampleRequest.query(sampleQuery);
-        sampleRows = (sampleResult.recordset ?? []).slice(0, SAMPLE_RETURN_LIMIT);
+        sampleRows = filterRecordColumns(
+          (params as any).environmentPolicy,
+          `${schemaName}.${tableName}`,
+          (sampleResult.recordset ?? []).slice(0, SAMPLE_RETURN_LIMIT),
+        );
       }
 
       // 3. Profile each column

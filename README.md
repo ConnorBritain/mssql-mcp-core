@@ -84,7 +84,7 @@ Each tool class implements the `RunnableTool` interface with `name`, `descriptio
 import { EnvironmentManager, getEnvironmentManager } from "@connorbritain/mssql-mcp-core";
 ```
 
-- **`EnvironmentManager`** — Manages multi-environment configurations, connection pools, per-environment policies (readonly, allowedTools, deniedTools, maxRowsDefault, requireApproval, auditLevel, allowedSchemas, deniedSchemas), and secret resolution.
+- **`EnvironmentManager`** — Manages multi-environment configurations, connection pools, per-environment policies (readonly, allowedTools, deniedTools, maxRowsDefault, requireApproval, auditLevel, allowedSchemas, deniedSchemas, allowedColumns, deniedColumns), and secret resolution.
 - **`getEnvironmentManager()`** — Returns the singleton instance.
 
 ### Audit Logging

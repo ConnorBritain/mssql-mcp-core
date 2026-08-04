@@ -37,9 +37,24 @@ export function wrapToolRun(
       allowedTools: envConfig.allowedTools,
       deniedTools: envConfig.deniedTools,
       maxRowsDefault: envConfig.maxRowsDefault,
+      allowedSchemas: envConfig.allowedSchemas,
+      deniedSchemas: envConfig.deniedSchemas,
+      allowedColumns: envConfig.allowedColumns,
+      deniedColumns: envConfig.deniedColumns,
       requireApproval: envConfig.requireApproval ?? false,
       auditLevel: envConfig.auditLevel ?? "basic",
     };
+
+    const requestedTable = typeof rawArgs.tableName === "string" ? rawArgs.tableName : undefined;
+    if (requestedTable) {
+      const parts = requestedTable.replace(/[\[\]]/g, "").split(".");
+      const schemaName = parts.length > 1 ? parts[parts.length - 2] : (rawArgs.schemaName || "dbo");
+      const tableName = parts[parts.length - 1];
+      const schemaCheck = environmentManager.isSchemaAllowed(policy.name, schemaName, tableName);
+      if (!schemaCheck.allowed) {
+        return { success: false, message: schemaCheck.reason, error: "SCHEMA_ACCESS_DENIED" };
+      }
+    }
 
     // Check denied tools policy (takes precedence)
     if (

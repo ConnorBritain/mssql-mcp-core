@@ -2,6 +2,7 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { createRequest } from "../transactions/TransactionManager.js";
 import { quoteName, quoteQualified, InvalidIdentifierError } from "../security/sqlIdentifier.js";
 import { buildWhereClause, InvalidFilterError, SUPPORTED_OPERATORS } from "../security/whereFilter.js";
+import { filterRecordColumns, tableReference, validateColumnNames } from "../security/columnPolicy.js";
 
 export class UpdateDataTool implements Tool {
   [key: string]: any;
@@ -79,6 +80,19 @@ export class UpdateDataTool implements Tool {
         };
       }
 
+      const policyColumns = [
+        ...Object.keys(updates),
+        ...(Array.isArray(filters) ? filters.map((filter: any) => filter.column) : []),
+      ];
+      const columnDecision = validateColumnNames(
+        params.environmentPolicy,
+        tableReference(tableName),
+        policyColumns,
+      );
+      if (!columnDecision.allowed) {
+        return { success: false, message: columnDecision.reason, error: "COLUMN_ACCESS_DENIED" };
+      }
+
       // Validate identifiers and filters up front, before any query executes.
       let table: string;
       const countRequest = createRequest(params);
@@ -132,7 +146,11 @@ export class UpdateDataTool implements Tool {
           needsConfirmation: true,
           message: `Preview: ${affectedRows} row(s) will be updated. Review the preview below and re-run with confirmUpdate: true to proceed.`,
           affectedRows,
-          preview: previewResult.recordset,
+          preview: filterRecordColumns(
+            params.environmentPolicy,
+            tableReference(tableName),
+            previewResult.recordset,
+          ),
           updates,
           error: "CONFIRMATION_REQUIRED",
         };

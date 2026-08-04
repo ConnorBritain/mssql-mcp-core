@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { filterAllowedColumns, isSchemaTableAllowed } from "../security/columnPolicy.js";
 
 const clampEnvLimit = (value: string | undefined, fallback: number, max: number) => {
   if (!value) {
@@ -251,13 +252,29 @@ export class SearchSchemaTool implements Tool {
           ? [columnsResult.recordset]
           : [];
 
-      const tableRecords = tableRecordsets[0] ?? [];
+      const rawTableRecords = tableRecordsets[0] ?? [];
+      const tableRecords = rawTableRecords.filter((record: any) =>
+        isSchemaTableAllowed((params as any).environmentPolicy, record.schemaName, record.tableName),
+      );
       const tableTotalRecord = tableRecordsets[1]?.[0] as { total?: number } | undefined;
-      const totalTables = typeof tableTotalRecord?.total === "number" ? tableTotalRecord.total : tableRecords.length;
+      const totalTables = Object.keys((params as any).environmentPolicy?.allowedSchemas ?? {}).length ||
+        Object.keys((params as any).environmentPolicy?.deniedSchemas ?? {}).length
+        ? tableRecords.length
+        : typeof tableTotalRecord?.total === "number" ? tableTotalRecord.total : tableRecords.length;
 
-      const columnRecords = columnRecordsets[0] ?? [];
+      const rawColumnRecords = columnRecordsets[0] ?? [];
+      const columnRecords = rawColumnRecords.filter((record: any) =>
+        filterAllowedColumns(
+          (params as any).environmentPolicy,
+          `${record.schemaName}.${record.tableName}`,
+          [{ columnName: record.columnName }],
+        ).length > 0,
+      );
       const columnTotalRecord = columnRecordsets[1]?.[0] as { total?: number } | undefined;
-      const totalColumns = typeof columnTotalRecord?.total === "number" ? columnTotalRecord.total : columnRecords.length;
+      const totalColumns = Object.keys((params as any).environmentPolicy?.allowedColumns ?? {}).length ||
+        Object.keys((params as any).environmentPolicy?.deniedColumns ?? {}).length
+        ? columnRecords.length
+        : typeof columnTotalRecord?.total === "number" ? columnTotalRecord.total : columnRecords.length;
 
       const response: SearchResult = {
         success: true,

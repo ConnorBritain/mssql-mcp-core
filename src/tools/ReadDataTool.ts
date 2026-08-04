@@ -1,6 +1,7 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { getEnvironmentManager } from "../config/EnvironmentManager.js";
+import { enforceQueryColumnPolicy } from "../security/queryColumnPolicy.js";
 
 export class ReadDataTool implements Tool {
   [key: string]: any;
@@ -303,6 +304,15 @@ export class ReadDataTool implements Tool {
           success: false,
           message: `Security validation failed: ${validation.error}`,
           error: "SECURITY_VALIDATION_FAILED",
+        };
+      }
+
+      const columnPolicyResult = enforceQueryColumnPolicy(query, params.environmentPolicy);
+      if (!columnPolicyResult.allowed) {
+        return {
+          success: false,
+          message: `Column policy validation failed: ${columnPolicyResult.reason}`,
+          error: "COLUMN_ACCESS_DENIED",
         };
       }
 

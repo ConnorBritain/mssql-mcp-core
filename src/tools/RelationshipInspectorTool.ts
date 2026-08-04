@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { checkColumnPolicy } from "../security/columnPolicy.js";
 
 type RelationshipParams = {
   tableName: string;
@@ -187,10 +188,25 @@ export class RelationshipInspectorTool implements Tool {
         };
       }
 
-      const [outbound, inbound] = await Promise.all([
+      const [rawOutbound, rawInbound] = await Promise.all([
         includeOutbound ? this.fetchRelationships(schemaName, tableName, "outbound", pool) : Promise.resolve([]),
         includeInbound ? this.fetchRelationships(schemaName, tableName, "inbound", pool) : Promise.resolve([]),
       ]);
+      const policy = (params as any).environmentPolicy;
+      const outbound = rawOutbound.map((relationship: any) => ({
+        ...relationship,
+        columnMapping: relationship.columnMapping.filter((mapping: any) =>
+          checkColumnPolicy(policy, `${schemaName}.${tableName}`, mapping.fromColumn).allowed &&
+          checkColumnPolicy(policy, `${relationship.to.schemaName}.${relationship.to.tableName}`, mapping.toColumn).allowed,
+        ),
+      })).filter((relationship: any) => relationship.columnMapping.length > 0);
+      const inbound = rawInbound.map((relationship: any) => ({
+        ...relationship,
+        columnMapping: relationship.columnMapping.filter((mapping: any) =>
+          checkColumnPolicy(policy, `${relationship.from.schemaName}.${relationship.from.tableName}`, mapping.fromColumn).allowed &&
+          checkColumnPolicy(policy, `${schemaName}.${tableName}`, mapping.toColumn).allowed,
+        ),
+      })).filter((relationship: any) => relationship.columnMapping.length > 0);
 
       if ((!outbound || outbound.length === 0) && (!inbound || inbound.length === 0)) {
         return {

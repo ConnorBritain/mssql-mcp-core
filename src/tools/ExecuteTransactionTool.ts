@@ -1,6 +1,7 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { quoteName, quoteQualified, InvalidIdentifierError } from "../security/sqlIdentifier.js";
+import { tableReference, validateColumnNames } from "../security/columnPolicy.js";
 import {
   buildWhereClause,
   InvalidFilterError,
@@ -104,7 +105,7 @@ export class ExecuteTransactionTool implements Tool {
     // Validate all operations before starting transaction
     for (let i = 0; i < operations.length; i++) {
       const op = operations[i] as TransactionOperation;
-      const validation = this.validateOperation(op, i);
+      const validation = this.validateOperation(op, i, params.environmentPolicy);
       if (validation) return validation;
     }
 
@@ -158,6 +159,7 @@ export class ExecuteTransactionTool implements Tool {
   private validateOperation(
     op: TransactionOperation,
     index: number,
+    environmentPolicy?: any,
   ): any | null {
     if (!op.type || !["insert", "update", "delete"].includes(op.type)) {
       return {
@@ -202,6 +204,20 @@ export class ExecuteTransactionTool implements Tool {
         message: `Operation ${index + 1}: a non-empty 'filters' array is required for delete operations.`,
         error: "INVALID_OPERATION",
       };
+    }
+
+    const operationColumns = [
+      ...(op.type === "insert" ? Object.keys((Array.isArray(op.data) ? op.data[0] : op.data) ?? {}) : []),
+      ...(op.type === "update" ? Object.keys(op.updates ?? {}) : []),
+      ...(op.filters ?? []).map((filter) => filter.column),
+    ];
+    const columnDecision = validateColumnNames(
+      environmentPolicy,
+      tableReference(op.tableName),
+      operationColumns,
+    );
+    if (!columnDecision.allowed) {
+      return { success: false, message: `Operation ${index + 1}: ${columnDecision.reason}`, error: "COLUMN_ACCESS_DENIED" };
     }
 
     // Validate identifiers and filters up front so a bad input fails cleanly (INVALID_REQUEST)

@@ -1,6 +1,7 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { getEnvironmentManager } from "../config/EnvironmentManager.js";
+import { isSchemaTableAllowed } from "../security/columnPolicy.js";
 
 export class ListTableTool implements Tool {
   [key: string]: any;
@@ -75,12 +76,15 @@ export class ListTableTool implements Tool {
       }
 
       const result = await request.query(query);
+      const tables = result.recordset.filter((row: any) =>
+        isSchemaTableAllowed(params.environmentPolicy, row.TABLE_SCHEMA, row.TABLE_NAME),
+      );
       return {
         success: true,
-        message: `Found ${result.recordset.length} table(s)${database ? ` in [${database}]` : ""}`,
+        message: `Found ${tables.length} table(s)${database ? ` in [${database}]` : ""}`,
         database: database || undefined,
-        tableCount: result.recordset.length,
-        tables: result.recordset,
+        tableCount: tables.length,
+        tables,
       };
     } catch (error) {
       console.error("Error listing tables:", error);

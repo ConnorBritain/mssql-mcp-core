@@ -1,6 +1,7 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { getEnvironmentManager } from "../config/EnvironmentManager.js";
+import { enforceQueryColumnPolicy } from "../security/queryColumnPolicy.js";
 
 export class ExplainQueryTool implements Tool {
   [key: string]: any;
@@ -38,6 +39,10 @@ export class ExplainQueryTool implements Tool {
     }
 
     const sanitizedQuery = query.trim();
+    const policyResult = enforceQueryColumnPolicy(sanitizedQuery, params?.environmentPolicy);
+    if (!policyResult.allowed) {
+      return { success: false, message: `Column policy validation failed: ${policyResult.reason}`, error: "COLUMN_ACCESS_DENIED" };
+    }
     const envManager = await getEnvironmentManager();
     const pool = await envManager.getConnection(environment);
 

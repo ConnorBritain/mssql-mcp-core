@@ -1,6 +1,7 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { createRequest } from "../transactions/TransactionManager.js";
 import { quoteName, quoteQualified, InvalidIdentifierError } from "../security/sqlIdentifier.js";
+import { tableReference, validateColumnNames } from "../security/columnPolicy.js";
 export class InsertDataTool implements Tool {
   [key: string]: any;
   name = "insert_data";
@@ -55,6 +56,15 @@ export class InsertDataTool implements Tool {
           };
         }
       }
+      const columnDecision = validateColumnNames(
+        params.environmentPolicy,
+        tableReference(tableName),
+        firstRecordColumns,
+      );
+      if (!columnDecision.allowed) {
+        return { success: false, message: columnDecision.reason, error: "COLUMN_ACCESS_DENIED" };
+      }
+
       // Validate identifiers up front, before any query executes.
       let table: string;
       let columns: string;
