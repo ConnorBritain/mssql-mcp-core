@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { AuditLogEntry } from "../AuditLogger.js";
 import type { AuditSink } from "./AuditSink.js";
+import { getDefaultAuditLogPath } from "../defaultLogPath.js";
 
 export class FileSink implements AuditSink {
   readonly type = "file";
@@ -11,15 +12,20 @@ export class FileSink implements AuditSink {
     if (filePath) {
       this.logFilePath = path.resolve(filePath);
     } else {
-      this.logFilePath = path.resolve(process.cwd(), "logs", "audit.jsonl");
+      this.logFilePath = getDefaultAuditLogPath();
     }
     this.ensureDirectory();
   }
 
   private ensureDirectory(): void {
     const dir = path.dirname(this.logFilePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    } catch (error) {
+      // Don't crash the server if the log directory can't be created
+      console.error(`Warning: could not create audit log directory '${dir}':`, error);
     }
   }
 
