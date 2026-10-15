@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { AuditSink } from "./sinks/AuditSink.js";
 import { FileSink } from "./sinks/FileSink.js";
+import { getDefaultAuditLogPath } from "./defaultLogPath.js";
 
 export type AuditLevel = "none" | "basic" | "verbose";
 
@@ -40,8 +41,8 @@ export class AuditLogger {
       this.logFilePath = path.resolve(logPath);
       this.ensureLogDirectory();
     } else if (this.enabled) {
-      // Default to logs/audit.jsonl in the project root
-      this.logFilePath = path.resolve(process.cwd(), "logs", "audit.jsonl");
+      // Default to ~/.mssql-mcp-server/logs/audit.jsonl (user-writable, independent of cwd)
+      this.logFilePath = getDefaultAuditLogPath();
       this.ensureLogDirectory();
     } else {
       this.logFilePath = "";
@@ -68,8 +69,13 @@ export class AuditLogger {
     if (!this.logFilePath) return;
 
     const dir = path.dirname(this.logFilePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    } catch (error) {
+      // Don't crash the server if the log directory can't be created
+      console.error(`Warning: could not create audit log directory '${dir}':`, error);
     }
   }
 
