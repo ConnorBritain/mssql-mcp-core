@@ -203,10 +203,10 @@ When `authMode` is `"aad"`, the credential used to obtain an Azure AD token can 
 | `AAD_CREDENTIAL` value | Credential used | Notes |
 |------------------------|-----------------|-------|
 | unset or `browser` | `InteractiveBrowserCredential` | **Default** — opens a browser popup. Suitable for interactive desktop use. |
-| `azcli` | `DefaultAzureCredential` | Uses the Azure CLI token (`az login`). Ideal for headless/CI/server scenarios. |
-| `default` | `DefaultAzureCredential` | Alias for `azcli`. Tries managed identity, env vars, az CLI, etc. in order. |
+| `azcli` | `AzureCliCredential` | Uses only the Azure CLI session (`az login`). Fails if no CLI login is available. Ideal for headless/CI/server scenarios. |
+| `default` | `DefaultAzureCredential` | Chained credential: tries environment variables, managed identity, az CLI, etc. in order. |
 
-When using `azcli` or `default`, set `AZURE_TENANT_ID` to your tenant ID so `DefaultAzureCredential` targets the correct tenant.
+When using `azcli` or `default`, set `AZURE_TENANT_ID` to your tenant ID so the credential targets the correct tenant.
 
 **Example (headless/CLI-token setup):**
 ```bash

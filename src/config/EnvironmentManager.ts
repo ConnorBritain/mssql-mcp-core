@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { InteractiveBrowserCredential, DefaultAzureCredential } from "@azure/identity";
+import { InteractiveBrowserCredential, DefaultAzureCredential, AzureCliCredential } from "@azure/identity";
 import sql from "mssql";
 import { SecretResolver, SecretsConfig, createSecretResolver } from "./SecretResolver.js";
 import type { AuditSinkConfig } from "../audit/sinks/AuditSink.js";
@@ -429,13 +429,15 @@ export class EnvironmentManager {
     // Azure AD auth
     // AAD_CREDENTIAL selects the credential type (opt-in; default preserves existing behavior):
     //   unset / "browser" → InteractiveBrowserCredential (opens browser popup — original behavior)
-    //   "azcli"           → DefaultAzureCredential (uses az CLI token; ideal for headless/CI)
-    //   "default"         → DefaultAzureCredential (same as "azcli")
+    //   "azcli"           → AzureCliCredential (only the az login session; no fallback chain)
+    //   "default"         → DefaultAzureCredential (chained: env vars, managed identity, az CLI, etc.)
     const aadCredential = process.env.AAD_CREDENTIAL?.toLowerCase();
     const credential =
-      aadCredential === "azcli" || aadCredential === "default"
-        ? new DefaultAzureCredential({ tenantId: process.env.AZURE_TENANT_ID })
-        : new InteractiveBrowserCredential({ redirectUri: "http://localhost" });
+      aadCredential === "azcli"
+        ? new AzureCliCredential({ tenantId: process.env.AZURE_TENANT_ID })
+        : aadCredential === "default"
+          ? new DefaultAzureCredential({ tenantId: process.env.AZURE_TENANT_ID })
+          : new InteractiveBrowserCredential({ redirectUri: "http://localhost" });
     const accessToken = await credential.getToken("https://database.windows.net/.default");
 
     if (!accessToken?.token) {
